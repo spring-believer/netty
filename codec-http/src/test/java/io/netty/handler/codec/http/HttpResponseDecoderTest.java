@@ -19,7 +19,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.PrematureChannelClosureException;
-import io.netty.handler.codec.TooLongFrameException;
 import io.netty.util.CharsetUtil;
 import org.junit.jupiter.api.Test;
 
@@ -98,7 +97,7 @@ public class HttpResponseDecoderTest {
         ch.writeInbound(Unpooled.copiedBuffer("\r\n", CharsetUtil.US_ASCII));
 
         HttpResponse res = ch.readInbound();
-        assertTrue(res.decoderResult().cause() instanceof TooLongFrameException);
+        assertTrue(res.decoderResult().cause() instanceof TooLongHttpHeaderException);
 
         assertFalse(ch.finish());
         assertNull(ch.readInbound());
@@ -797,6 +796,84 @@ public class HttpResponseDecoderTest {
         assertThat(decoderResult.totalSize(), is(50));
         HttpContent c = channel.readInbound();
         c.release();
+        assertFalse(channel.finish());
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1c() {
+        testHeaderNameStartsWithControlChar(0x1c);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1d() {
+        testHeaderNameStartsWithControlChar(0x1d);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1e() {
+        testHeaderNameStartsWithControlChar(0x1e);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1f() {
+        testHeaderNameStartsWithControlChar(0x1f);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar0c() {
+        testHeaderNameStartsWithControlChar(0x0c);
+    }
+
+    private void testHeaderNameStartsWithControlChar(int controlChar) {
+        ByteBuf responseBuffer = Unpooled.buffer();
+        responseBuffer.writeCharSequence("HTTP/1.1 200 OK\r\n" +
+                "Host: netty.io\r\n", CharsetUtil.US_ASCII);
+        responseBuffer.writeByte(controlChar);
+        responseBuffer.writeCharSequence("Transfer-Encoding: chunked\r\n\r\n", CharsetUtil.US_ASCII);
+        testInvalidHeaders0(responseBuffer);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1c() {
+        testHeaderNameEndsWithControlChar(0x1c);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1d() {
+        testHeaderNameEndsWithControlChar(0x1d);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1e() {
+        testHeaderNameEndsWithControlChar(0x1e);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1f() {
+        testHeaderNameEndsWithControlChar(0x1f);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar0c() {
+        testHeaderNameEndsWithControlChar(0x0c);
+    }
+
+    private void testHeaderNameEndsWithControlChar(int controlChar) {
+        ByteBuf responseBuffer = Unpooled.buffer();
+        responseBuffer.writeCharSequence("HTTP/1.1 200 OK\r\n" +
+                "Host: netty.io\r\n", CharsetUtil.US_ASCII);
+        responseBuffer.writeCharSequence("Transfer-Encoding", CharsetUtil.US_ASCII);
+        responseBuffer.writeByte(controlChar);
+        responseBuffer.writeCharSequence(": chunked\r\n\r\n", CharsetUtil.US_ASCII);
+        testInvalidHeaders0(responseBuffer);
+    }
+
+    private static void testInvalidHeaders0(ByteBuf responseBuffer) {
+        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseDecoder());
+        assertTrue(channel.writeInbound(responseBuffer));
+        HttpResponse response = channel.readInbound();
+        assertThat(response.decoderResult().cause(), instanceOf(IllegalArgumentException.class));
+        assertTrue(response.decoderResult().isFailure());
         assertFalse(channel.finish());
     }
 }

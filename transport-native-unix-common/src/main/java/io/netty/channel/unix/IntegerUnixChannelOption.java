@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 The Netty Project
+ * Copyright 2022 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -13,15 +13,20 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.netty.util.concurrent;
+package io.netty.channel.unix;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Assertions;
-
-public class ScheduledFutureTaskTest {
-
-    @Test
-    public void testDeadlineNanosNotOverflow() {
-        Assertions.assertEquals(Long.MAX_VALUE, ScheduledFutureTask.deadlineNanos(Long.MAX_VALUE));
+/**
+ * A {@link GenericUnixChannelOption} which uses an {@link Integer} as {@code optval}.
+ */
+public final class IntegerUnixChannelOption extends GenericUnixChannelOption<Integer> {
+    /**
+     * Creates a new instance.
+     *
+     * @param name      the name that is used.
+     * @param level     the level.
+     * @param optname   the optname.
+     */
+    public IntegerUnixChannelOption(String name, int level, int optname) {
+        super(name, level, optname);
     }
 }

@@ -15,9 +15,9 @@
  */
 package io.netty.handler.codec.http;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.TooLongFrameException;
 import io.netty.util.AsciiString;
 import io.netty.util.CharsetUtil;
 import org.junit.jupiter.api.Test;
@@ -304,7 +304,7 @@ public class HttpRequestDecoderTest {
         assertTrue(channel.writeInbound(Unpooled.copiedBuffer(requestStr, CharsetUtil.US_ASCII)));
         HttpRequest request = channel.readInbound();
         assertTrue(request.decoderResult().isFailure());
-        assertTrue(request.decoderResult().cause() instanceof TooLongFrameException);
+        assertTrue(request.decoderResult().cause() instanceof TooLongHttpLineException);
         assertFalse(channel.finish());
     }
 
@@ -326,7 +326,7 @@ public class HttpRequestDecoderTest {
         assertTrue(channel.writeInbound(Unpooled.copiedBuffer(requestStr, CharsetUtil.US_ASCII)));
         HttpRequest request = channel.readInbound();
         assertTrue(request.decoderResult().isFailure());
-        assertTrue(request.decoderResult().cause() instanceof TooLongFrameException);
+        assertTrue(request.decoderResult().cause() instanceof TooLongHttpLineException);
         assertFalse(channel.finish());
     }
 
@@ -353,8 +353,77 @@ public class HttpRequestDecoderTest {
         assertTrue(channel.writeInbound(Unpooled.copiedBuffer(requestStr, CharsetUtil.US_ASCII)));
         HttpRequest request = channel.readInbound();
         assertTrue(request.decoderResult().isFailure());
-        assertTrue(request.decoderResult().cause() instanceof TooLongFrameException);
+        assertTrue(request.decoderResult().cause() instanceof TooLongHttpHeaderException);
         assertFalse(channel.finish());
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1c() {
+        testHeaderNameStartsWithControlChar(0x1c);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1d() {
+        testHeaderNameStartsWithControlChar(0x1d);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1e() {
+        testHeaderNameStartsWithControlChar(0x1e);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar1f() {
+        testHeaderNameStartsWithControlChar(0x1f);
+    }
+
+    @Test
+    public void testHeaderNameStartsWithControlChar0c() {
+        testHeaderNameStartsWithControlChar(0x0c);
+    }
+
+    private void testHeaderNameStartsWithControlChar(int controlChar) {
+        ByteBuf requestBuffer = Unpooled.buffer();
+        requestBuffer.writeCharSequence("GET /some/path HTTP/1.1\r\n" +
+                "Host: netty.io\r\n", CharsetUtil.US_ASCII);
+        requestBuffer.writeByte(controlChar);
+        requestBuffer.writeCharSequence("Transfer-Encoding: chunked\r\n\r\n", CharsetUtil.US_ASCII);
+        testInvalidHeaders0(requestBuffer);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1c() {
+        testHeaderNameEndsWithControlChar(0x1c);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1d() {
+        testHeaderNameEndsWithControlChar(0x1d);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1e() {
+        testHeaderNameEndsWithControlChar(0x1e);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar1f() {
+        testHeaderNameEndsWithControlChar(0x1f);
+    }
+
+    @Test
+    public void testHeaderNameEndsWithControlChar0c() {
+        testHeaderNameEndsWithControlChar(0x0c);
+    }
+
+    private void testHeaderNameEndsWithControlChar(int controlChar) {
+        ByteBuf requestBuffer = Unpooled.buffer();
+        requestBuffer.writeCharSequence("GET /some/path HTTP/1.1\r\n" +
+                "Host: netty.io\r\n", CharsetUtil.US_ASCII);
+        requestBuffer.writeCharSequence("Transfer-Encoding", CharsetUtil.US_ASCII);
+        requestBuffer.writeByte(controlChar);
+        requestBuffer.writeCharSequence(": chunked\r\n\r\n", CharsetUtil.US_ASCII);
+        testInvalidHeaders0(requestBuffer);
     }
 
     @Test
@@ -366,9 +435,9 @@ public class HttpRequestDecoderTest {
     }
 
     @Test
-    public void testWhitespaceBeforeTransferEncoding01() {
+    public void testWhitespaceInTransferEncoding01() {
         String requestStr = "GET /some/path HTTP/1.1\r\n" +
-                " Transfer-Encoding : chunked\r\n" +
+                "Transfer-Encoding : chunked\r\n" +
                 "Content-Length: 1\r\n" +
                 "Host: netty.io\r\n\r\n" +
                 "a";
@@ -376,9 +445,9 @@ public class HttpRequestDecoderTest {
     }
 
     @Test
-    public void testWhitespaceBeforeTransferEncoding02() {
+    public void testWhitespaceInTransferEncoding02() {
         String requestStr = "POST / HTTP/1.1" +
-                " Transfer-Encoding : chunked\r\n" +
+                "Transfer-Encoding : chunked\r\n" +
                 "Host: target.com" +
                 "Content-Length: 65\r\n\r\n" +
                 "0\r\n\r\n" +
@@ -475,6 +544,7 @@ public class HttpRequestDecoderTest {
         assertTrue(request.headers().contains("Transfer-Encoding", "chunked", false));
         assertFalse(request.headers().contains("Content-Length"));
         LastHttpContent c = channel.readInbound();
+        c.release();
         assertFalse(channel.finish());
     }
 
@@ -499,11 +569,15 @@ public class HttpRequestDecoderTest {
     }
 
     private static void testInvalidHeaders0(String requestStr) {
+        testInvalidHeaders0(Unpooled.copiedBuffer(requestStr, CharsetUtil.US_ASCII));
+    }
+
+    private static void testInvalidHeaders0(ByteBuf requestBuffer) {
         EmbeddedChannel channel = new EmbeddedChannel(new HttpRequestDecoder());
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(requestStr, CharsetUtil.US_ASCII)));
+        assertTrue(channel.writeInbound(requestBuffer));
         HttpRequest request = channel.readInbound();
+        assertThat(request.decoderResult().cause(), instanceOf(IllegalArgumentException.class));
         assertTrue(request.decoderResult().isFailure());
-        assertTrue(request.decoderResult().cause() instanceof IllegalArgumentException);
         assertFalse(channel.finish());
     }
 }

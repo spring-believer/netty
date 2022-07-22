@@ -23,6 +23,7 @@ import io.netty.channel.unix.Socket;
 import io.netty.channel.socket.InternetProtocolFamily;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.SocketUtils;
+import io.netty.util.internal.UnstableApi;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -36,7 +37,8 @@ import static io.netty.channel.unix.Errors.ioResult;
 /**
  * A socket which provides access Linux native methods.
  */
-final class LinuxSocket extends Socket {
+@UnstableApi
+public final class LinuxSocket extends Socket {
     static final InetAddress INET6_ANY = unsafeInetAddrByName("::");
     private static final InetAddress INET_ANY = unsafeInetAddrByName("0.0.0.0");
     private static final long MAX_UINT32_T = 0xFFFFFFFFL;
@@ -329,12 +331,20 @@ final class LinuxSocket extends Socket {
         return new LinuxSocket(newSocketStream0(ipv6));
     }
 
+    public static LinuxSocket newSocketStream(InternetProtocolFamily protocol) {
+        return new LinuxSocket(newSocketStream0(protocol));
+    }
+
     public static LinuxSocket newSocketStream() {
         return newSocketStream(isIPv6Preferred());
     }
 
     public static LinuxSocket newSocketDgram(boolean ipv6) {
         return new LinuxSocket(newSocketDgram0(ipv6));
+    }
+
+    public static LinuxSocket newSocketDgram(InternetProtocolFamily family) {
+        return new LinuxSocket(newSocketDgram0(family));
     }
 
     public static LinuxSocket newSocketDgram() {

@@ -23,6 +23,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.internal.PlatformDependent;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,32 +35,36 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @DisabledIf(value = "isNotSupported", disabledReason = "Brotli is not supported on this platform")
 public class BrotliDecoderTest {
 
-    private static final Random RANDOM;
+    private static Random RANDOM;
     private static final byte[] BYTES_SMALL = new byte[256];
     private static final byte[] BYTES_LARGE = new byte[256 * 1024];
-    private static final ByteBuf WRAPPED_BYTES_SMALL;
-    private static final ByteBuf WRAPPED_BYTES_LARGE;
-    private static final byte[] COMPRESSED_BYTES_SMALL;
-    private static final byte[] COMPRESSED_BYTES_LARGE;
+    private static byte[] COMPRESSED_BYTES_SMALL;
+    private static byte[] COMPRESSED_BYTES_LARGE;
 
-    static {
+    @BeforeAll
+    static void setUp() {
         try {
             Brotli.ensureAvailability();
+
             RANDOM = new Random();
             fillArrayWithCompressibleData(BYTES_SMALL);
             fillArrayWithCompressibleData(BYTES_LARGE);
-            WRAPPED_BYTES_SMALL = Unpooled.wrappedBuffer(BYTES_SMALL);
-            WRAPPED_BYTES_LARGE = Unpooled.wrappedBuffer(BYTES_LARGE);
             COMPRESSED_BYTES_SMALL = compress(BYTES_SMALL);
             COMPRESSED_BYTES_LARGE = compress(BYTES_LARGE);
         } catch (Throwable throwable) {
             throw new ExceptionInInitializerError(throwable);
         }
     }
+
+    private static final ByteBuf WRAPPED_BYTES_SMALL = Unpooled.unreleasableBuffer(
+            Unpooled.wrappedBuffer(BYTES_SMALL)).asReadOnly();
+    private static final ByteBuf WRAPPED_BYTES_LARGE = Unpooled.unreleasableBuffer(
+            Unpooled.wrappedBuffer(BYTES_LARGE)).asReadOnly();
 
     static boolean isNotSupported() {
         return PlatformDependent.isOsx() && "aarch_64".equals(PlatformDependent.normalizedArch());
@@ -111,13 +116,13 @@ public class BrotliDecoderTest {
     @ParameterizedTest
     @MethodSource("smallData")
     public void testDecompressionOfSmallChunkOfData(ByteBuf data) {
-        testDecompression(WRAPPED_BYTES_SMALL, data);
+        testDecompression(WRAPPED_BYTES_SMALL.duplicate(), data);
     }
 
     @ParameterizedTest
     @MethodSource("largeData")
     public void testDecompressionOfLargeChunkOfData(ByteBuf data) {
-        testDecompression(WRAPPED_BYTES_LARGE, data);
+        testDecompression(WRAPPED_BYTES_LARGE.duplicate(), data);
     }
 
     @ParameterizedTest
